@@ -19,11 +19,9 @@ API_URL = "https://openrouter.ai/api/v1/chat/completions"
 MODEL = "anthropic/claude-3-haiku"
 
 def count_tokens(messages):
-    """Estimate token count (1 token ≈ 4 chars)"""
     return len(json.dumps(messages)) // 4
 
 def get_max_response_tokens():
-    """Calculate safe response tokens for free tier"""
     input_tokens = count_tokens(st.session_state.messages)
     return max(300, 2500 - input_tokens - 100) 
 
@@ -35,7 +33,6 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 def query_openrouter():
-    """Robust API call with proper error handling"""
     headers = {
         "Authorization": f"Bearer {st.secrets['OPENROUTER_API_KEY']}",
         "Content-Type": "application/json",
