@@ -1,5 +1,9 @@
 [server]
 headless = true
 [theme]
-base = "light"
-font = "sans serif"
+base="dark"
+primaryColor="#6C63FF"
+backgroundColor="#0E1117"
+secondaryBackgroundColor="#262730"
+textColor="#FAFAFA"
+font="sans serif"
