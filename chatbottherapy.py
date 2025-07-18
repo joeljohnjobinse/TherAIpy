@@ -122,14 +122,18 @@ elif selected_page == "📊 Your Profile":
     st.divider()
     st.subheader("✨ About You")
     
+    def generate_initial_summary():
+        if sum(st.session_state.traits.values()) == 0:
+            return "Our conversation is just beginning. As we talk more, I'll understand you better."
+        return None
+
     def generate_ai_summary():
         trait_description = "\n".join([f"{trait}: {score}" for trait, score in st.session_state.traits.items()])
         prompt = f"""Based on these conversation traits:
         {trait_description}
         
-        Write a warm, compassionate 3-4 sentence summary about this person's emotional profile. 
-        Use second-person ("you") and focus on both strengths and challenges. 
-        Keep it positive but authentic, like a caring therapist might say."""
+        Write a warm, compassionate summary about this person's emotional profile in 3 sentences max. 
+        Use "you" language. Be specific to these traits. Skip introductory phrases and go straight to the insights."""
         
         headers = {
             "Authorization": f"Bearer {st.secrets['OPENROUTER_API_KEY']}",
@@ -138,27 +142,29 @@ elif selected_page == "📊 Your Profile":
         payload = {
             "model": "anthropic/claude-3-haiku",
             "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.8,
-            "max_tokens": 300
+            "temperature": 0.7,
+            "max_tokens": 200
         }
 
         try:
             response = requests.post("https://openrouter.ai/api/v1/chat/completions",
                                    headers=headers, json=payload, timeout=15)
             response.raise_for_status()
-            return response.json()["choices"][0]["message"]["content"]
+            content = response.json()["choices"][0]["message"]["content"]
+            return content.split(":")[-1].strip() if ":" in content else content
         except Exception:
             return None
 
-    if "profile_summary" not in st.session_state:
-        with st.spinner("Getting to know you better..."):
-            summary = generate_ai_summary()
-            st.session_state.profile_summary = summary or "I'm still learning about you. The more we talk, the better I'll understand your unique qualities."
+    if sum(st.session_state.traits.values()) == 0:
+        summary = generate_initial_summary()
+    else:
+        with st.spinner("Reflecting on our conversation..."):
+            summary = generate_ai_summary() or "I'm beginning to understand you. Keep sharing your thoughts."
 
     st.markdown(
         f'<div style="padding:20px; border-radius:10px; margin-bottom:20px; '
         f'background-color:#2e2e2e; color:#f0f2f6; border-left:4px solid #6eb5ff;">'
-        f'{st.session_state.profile_summary}'
+        f'{summary}'
         f'</div>', 
         unsafe_allow_html=True
     )
