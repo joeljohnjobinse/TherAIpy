@@ -16,6 +16,8 @@ import hmac
 import hashlib
 import base64
 import secrets
+import pycountry
+from crisis_resources import CRISIS_RESOURCES
 
 # ======================
 # PATH SETUP
@@ -57,6 +59,10 @@ if "advice_points" not in st.session_state:
     st.session_state.advice_points = []
 if "current_advice" not in st.session_state:
     st.session_state.current_advice = ""
+if "autosave_enabled" not in st.session_state:
+    st.session_state.autosave_enabled = True
+if "last_save_time" not in st.session_state:
+    st.session_state.last_save_time = None
 
 # ======================
 # ANIMATION SETUP
@@ -127,11 +133,10 @@ st.markdown("""
 # ======================
 def generate_salt():
     """Generate a random salt for password hashing in bytes format"""
-    return secrets.token_bytes(16)  # Changed to token_bytes instead of token_hex
+    return secrets.token_bytes(16)
 
 def hash_password(password):
     """Hash password with automatically generated salt using PBKDF2-HMAC-SHA256"""
-    # Let passlib handle the salt generation and formatting
     return pbkdf2_sha256.hash(password)
 
 def verify_password(password, hashed_password):
@@ -141,11 +146,10 @@ def verify_password(password, hashed_password):
 # ======================
 # AUTHENTICATION SETUP
 # ======================
-# Initialize config file with proper structure
 if not os.path.exists(CONFIG_PATH):
     default_config = {
-        "credentials": {  # Changed from "users" to "credentials"
-            "usernames": {}  # Added "usernames" level
+        "credentials": { 
+            "usernames": {}
         },
         "cookie": {
             "expiry_days": 30,
@@ -184,7 +188,7 @@ if not st.session_state.user:
         if st.button("Login"):
             if not username or not password:
                 st.error("Please enter both username and password")
-            elif username in config['credentials']['usernames']:  # Fixed path
+            elif username in config['credentials']['usernames']:
                 stored_hash = config['credentials']['usernames'][username]['password']
                 if verify_password(password, stored_hash):
                     st.session_state.user = username
@@ -213,12 +217,11 @@ if not st.session_state.user:
                 st.error("Password must be at least 8 characters")
             else:
                 try:
-                    # Let passlib handle the salt generation and hashing
                     hashed_pw = hash_password(password)
                 
                     config['credentials']['usernames'][new_user] = {
                         'email': email,
-                        'password': hashed_pw,  # Store the complete hashed password string
+                        'password': hashed_pw,
                         'name': new_user,
                         'created_at': datetime.now().isoformat()
                     }
@@ -233,53 +236,6 @@ if not st.session_state.user:
 
     st.stop()
 
-# ======================
-# SIDEBAR NAVIGATION
-# ======================
-with st.sidebar:
-    st.title("🌿 TherAIpy")
-    st.markdown(f"Welcome, **{st.session_state.user}**")
-    
-    if st.button("Logout"):
-        st.session_state.user = None
-        st.session_state.auth_status = None
-        st.rerun()
-    
-    st.divider()
-    
-    if st.button("💬 Chat", use_container_width=True):
-        st.session_state.page = "Chat"
-    if st.button("📂 Saved Chats", use_container_width=True):
-        st.session_state.page = "Saved"
-
-    if st.button("✨ New Chat", use_container_width=True, key="new_chat_btn"):
-        st.session_state.messages = [{"role": "assistant", "content": "Hello, I'm here to listen. What would you like to share today?"}]
-        st.session_state.traits = {k: 0 for k in st.session_state.traits}
-        st.rerun()
-    
-    if st.button("💾 Save Current Chat", use_container_width=True, key="save_chat_btn"):
-        timestamp = datetime.now().isoformat()
-        path = os.path.join(USERDATA_DIR, f"{st.session_state.user}_chats.json")
-        data = {
-            "timestamp": timestamp,
-            "messages": st.session_state.messages,
-            "traits": st.session_state.traits
-        }
-        all_data = []
-        if os.path.exists(path):
-            with open(path) as f:
-                all_data = json.load(f)
-        all_data.append(data)
-        with open(path, 'w') as f:
-            json.dump(all_data, f)
-        st.success("Chat saved!")
-
-
-    st.markdown("### My Profile")
-    if st.button("📊 Personal Insights", use_container_width=True):
-        st.session_state.page = "Profile"
-    if st.button("💡 Advice Collection", use_container_width=True):
-        st.session_state.page = "Advice"
 # ======================
 # TRAIT EXTRACTION
 # ======================
@@ -297,6 +253,121 @@ def update_traits(text):
             if re.search(rf"\b{kw}\b", text, re.IGNORECASE):
                 st.session_state.traits[trait] += 1
 
+def autosave_chat():
+    """Save chat automatically after conditions are met"""
+    if (st.session_state.autosave_enabled and 
+        len(st.session_state.messages) > 1 and
+        (st.session_state.last_save_time is None or 
+         (datetime.now() - st.session_state.last_save_time).seconds > 300)):
+        
+        timestamp = datetime.now().isoformat()
+        path = os.path.join(USERDATA_DIR, f"{st.session_state.user}_chats.json")
+        
+        try:
+            all_data = []
+            if os.path.exists(path):
+                with open(path, 'r') as f:
+                    all_data = json.load(f)
+            
+            current_state = {
+                "messages": st.session_state.messages,
+                "traits": st.session_state.traits,
+                "reactions": st.session_state.get("reactions", {})
+            }
+            
+            if not all_data or current_state != all_data[-1]:
+                all_data.append({
+                    "timestamp": timestamp,
+                    **current_state
+                })
+                
+                with open(path, 'w') as f:
+                    json.dump(all_data, f, indent=2)
+                
+                st.session_state.last_save_time = datetime.now()
+                st.toast("Autosaved chat", icon="💾")
+        except Exception as e:
+            st.error(f"Autosave failed: {str(e)}")
+
+# ======================
+# SIDEBAR NAVIGATION
+# ======================
+with st.sidebar:
+    st.title("🌿 TherAIpy")
+    st.markdown(f"Welcome, **{st.session_state.user}**")
+    
+    if st.button("Logout"):
+        st.session_state.user = None
+        st.session_state.auth_status = None
+        st.rerun()
+    
+    if st.button("💬 Chat", use_container_width=True):
+        st.session_state.page = "Chat"
+    if st.button("📂 Saved Chats", use_container_width=True):
+        st.session_state.page = "Saved"
+
+    if st.button("✨ New Chat", use_container_width=True, key="new_chat_btn"):
+        st.session_state.messages = [{"role": "assistant", "content": "Hello, I'm here to listen. What would you like to share today?"}]
+        st.session_state.traits = {k: 0 for k in st.session_state.traits}
+        st.rerun()
+
+
+    st.markdown("### My Profile")
+    if st.button("📊 Personal Insights", use_container_width=True):
+        st.session_state.page = "Profile"
+    if st.button("💡 Advice Collection", use_container_width=True):
+        st.session_state.page = "Advice"
+    
+    if st.button("💾 Save Current Chat", use_container_width=True, key="save_chat_btn"):
+        timestamp = datetime.now().isoformat()
+        path = os.path.join(USERDATA_DIR, f"{st.session_state.user}_chats.json")
+        data = {
+            "timestamp": timestamp,
+            "messages": st.session_state.messages,
+            "traits": st.session_state.traits
+        }
+        all_data = []
+        if os.path.exists(path):
+            with open(path) as f:
+                all_data = json.load(f)
+        all_data.append(data)
+        with open(path, 'w') as f:
+            json.dump(all_data, f)
+        st.success("Chat saved!")
+    
+    st.toggle("💾 Auto-save chats", 
+              value=st.session_state.autosave_enabled,
+              key="autosave_toggle",
+              help="Automatically saves every 5 minutes and after each exchange")
+    
+    with st.expander("🆘 Quick Help", expanded=False):
+        country = st.selectbox(
+            "Your country",
+            options=["Auto-Detect"] + [c.name for c in pycountry.countries],
+            index=0,
+            key="crisis_country"
+        )
+        
+        if country == "Auto-Detect":
+            try:
+                ip_info = requests.get("https://ipapi.co/json/", timeout=2).json()
+                country_code = ip_info.get("country_code", "default")
+            except:
+                country_code = "default"
+        else:
+            country_code = pycountry.countries.get(name=country).alpha_2
+            
+        resources = CRISIS_RESOURCES.get(country_code, CRISIS_RESOURCES["default"])
+        
+        st.markdown(f"### {resources.get('icon', '')} Local Support")
+        for name, number in [(k,v) for k,v in resources.items() if k != "icon"]:
+            st.markdown(f"**{name}:** `{number}`")
+        
+        st.markdown("---")
+        st.page_link("https://www.befrienders.org", 
+                    label="🌐 Find more local resources", 
+                    icon="➡️")
+        
 # ======================
 # ADVICE EXTRACTION SYSTEM
 # ======================
@@ -315,7 +386,7 @@ def extract_advice(response):
                 "text": sentence,
                 "timestamp": datetime.now().isoformat(),
                 "refined": False,
-                "uid": secrets.token_hex(3)  # Unique ID for each advice
+                "uid": secrets.token_hex(3)
             })
 
 def refine_advice_text(raw_text):
@@ -345,17 +416,28 @@ def refine_advice_text(raw_text):
             json={
                 "model": "anthropic/claude-3-haiku",
                 "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.3  # Less creative, more consistent
+                "temperature": 0.3
             },
             timeout=10
         )
         return response.json()['choices'][0]['message']['content'].strip()
     except:
-        return raw_text  # Fallback to original if API fails
+        return raw_text
+    
 # ======================
 # OPENROUTER RESPONSE
 # ======================
 def get_response(convo):
+    emergency_phrases = ["kill myself", "end it all", "don't want to live"]
+    if any(phrase in convo.lower() for phrase in emergency_phrases):
+        return """I hear you're in tremendous pain. You're not alone. Please:
+        
+        1. Tap the 🆘 button in the sidebar for immediate help
+        2. Consider calling a trusted friend
+        3. Know this feeling can pass
+        
+        I'm here to listen too."""
+    
     prompt = """As an empathetic therapist, craft a response that:
     - Validates the person's feelings naturally
     - Asks thoughtful open-ended questions
@@ -424,13 +506,12 @@ def generate_profile_summary(total_traits):
             json={
                 "model": "anthropic/claude-3-haiku",
                 "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.8  # More creative variation
+                "temperature": 0.8
             },
             timeout=10
         )
         return response.json()['choices'][0]['message']['content'].strip()
     except:
-        # Fallback if API fails
         return "Your emotional patterns show interesting depth across our conversations."
 
 def calculate_total_traits():
@@ -445,7 +526,6 @@ def calculate_total_traits():
             for trait, value in chat['traits'].items():
                 total_traits[trait] += value
     
-    # Add current unsaved chat traits
     for trait, value in st.session_state.traits.items():
         total_traits[trait] += value
         
@@ -457,31 +537,25 @@ def calculate_total_traits():
 if st.session_state.page == "Chat":
     st.title("💬 Your Therapy Chat")
     
-    # Display chat messages
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    # Chat input
     if user_input := st.chat_input("💭 How are you feeling today?"):
         st.session_state.messages.append({"role": "user", "content": user_input})
-        
+    
         with st.chat_message("user"):
             st.markdown(user_input)
-        
-        # Get conversation context
-        convo = "\n".join(
-            f"{m['role']}: {m['content']}" 
-            for m in st.session_state.messages[-4:]
-        )
-        
-        # Get and display AI response
+    
+        convo = "\n".join(f"{m['role']}: {m['content']}" for m in st.session_state.messages[-4:])
         reply = get_response(convo)
         update_traits(reply)
-        
+    
         st.session_state.messages.append({"role": "assistant", "content": reply})
         with st.chat_message("assistant"):
             st.markdown(reply)
+    
+        autosave_chat()
 
 elif st.session_state.page == "Profile":
     st.title("📊 Your Emotional Profile")
@@ -515,7 +589,7 @@ elif st.session_state.page == "Profile":
         st.subheader("📈 Trait Trends")
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.barh(
-            [t for t in total_traits if total_traits[t] > 0],  # Only show traits with scores
+            [t for t in total_traits if total_traits[t] > 0],
             [total_traits[t] for t in total_traits if total_traits[t] > 0],
             color="#6eb5ff"
         )
@@ -536,19 +610,16 @@ elif st.session_state.page == "Saved":
             if not all_chats:
                 st.info("No chats saved yet.")
             else:
-                # Create a mapping of display names to chat indices
                 chat_names = [f"Chat {i+1}" for i in range(len(all_chats))]
                 
-                # Check if we have saved names in the chat data
                 for i, chat in enumerate(all_chats):
                     if 'display_name' in chat:
                         chat_names[i] = chat['display_name']
                 
-                # Select a chat to view/edit
                 selected_chat_name = st.selectbox(
                     "Select a chat to view:",
                     chat_names,
-                    index=len(chat_names)-1  # Default to most recent
+                    index=len(chat_names)-1
                 )
                 selected_index = chat_names.index(selected_chat_name)
                 chat = all_chats[selected_index]
@@ -559,7 +630,6 @@ elif st.session_state.page == "Saved":
                         for a in chat["advice_points"]
                     ]
 
-                # Rename functionality
                 with st.expander("✏️ Rename this chat"):
                     new_name = st.text_input(
                         "New name for this chat:",
@@ -573,7 +643,6 @@ elif st.session_state.page == "Saved":
                         st.success("Chat renamed!")
                         st.rerun()
                 
-                # Display the selected chat
                 with st.expander(f"🗒️ {chat_names[selected_index]}"):
                     for msg in chat['messages']:
                         st.chat_message(msg['role']).markdown(msg['content'])
@@ -588,7 +657,6 @@ elif st.session_state.page == "Saved":
                     ax.invert_yaxis()
                     st.pyplot(fig)
                     
-                    # Show original timestamp in small text
                     st.caption(f"Originally saved: {chat['timestamp']}")
         except Exception as e:
             st.error(f"Error loading saved chats: {e}")
@@ -598,16 +666,15 @@ elif st.session_state.page == "Saved":
 elif st.session_state.page == "Advice":
     st.title("💡 Personalized Advice")
     
-    # Convert legacy format and ensure uniqueness
     for i, advice in enumerate(st.session_state.advice_points):
         if isinstance(advice, str):
             st.session_state.advice_points[i] = {
                 "text": advice,
                 "timestamp": datetime.now().isoformat(),
                 "refined": False,
-                "uid": secrets.token_hex(3)  # Add unique ID
+                "uid": secrets.token_hex(3)
             }
-        elif "uid" not in advice:  # For existing dicts without UID
+        elif "uid" not in advice:
             advice["uid"] = secrets.token_hex(3)
     
     if not st.session_state.advice_points:
@@ -630,14 +697,12 @@ elif st.session_state.page == "Advice":
                 except:
                     continue
         
-        # Display with unique keys
         for date, advice_list in advice_by_date.items():
             with st.expander(f"🗓️ {date}"):
                 for advice in advice_list:
                     cols = st.columns([8,1,1])
                     cols[0].markdown(f"▸ {advice['text']}")
                     
-                    # Use UID in keys instead of timestamp
                     if cols[1].button("👍", key=f"like_{advice['uid']}"):
                         st.toast("Saved as helpful advice!")
                     
