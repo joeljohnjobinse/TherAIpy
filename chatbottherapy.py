@@ -109,7 +109,7 @@ st.markdown("""
     
     /* Compact section spacing */
     .sidebar .section-header {
-        margin-bottom: 0.5rem !important;
+        margin-bottom: 0.1rem !important;
     }
     
     /* Tighter button grouping */
@@ -251,8 +251,6 @@ with st.sidebar:
         st.session_state.page = "Chat"
     if st.button("📂 Saved Chats", use_container_width=True):
         st.session_state.page = "Saved"
-    
-    st.divider()
 
     if st.button("✨ New Chat", use_container_width=True, key="new_chat_btn"):
         st.session_state.messages = [{"role": "assistant", "content": "Hello, I'm here to listen. What would you like to share today?"}]
@@ -275,9 +273,8 @@ with st.sidebar:
         with open(path, 'w') as f:
             json.dump(all_data, f)
         st.success("Chat saved!")
-    
-    st.divider()
-    
+
+
     st.markdown("### My Profile")
     if st.button("📊 Personal Insights", use_container_width=True):
         st.session_state.page = "Profile"
