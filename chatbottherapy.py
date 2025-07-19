@@ -238,6 +238,7 @@ def get_response(convo):
     - Sounds completely natural without instructions
     - Don't describe your tone
     - Don't make any visual gestures, just offer a lending ear and advice if necessary
+    - Add an appropriate emoji for the response also
     
     Current conversation:
     {convo}
