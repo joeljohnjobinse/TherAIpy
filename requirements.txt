@@ -4,3 +4,4 @@ pyyaml
 matplotlib
 passlib
 python-dotenv
+pycountry>=22.3.5
