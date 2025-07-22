@@ -1,5 +1,5 @@
 # ======================
-# THERAIPY APP WITH WORKING AUTHENTICATION
+# MINDLY APP WITH WORKING AUTHENTICATION
 # ======================
 
 import streamlit as st
@@ -32,7 +32,7 @@ os.makedirs(USERDATA_DIR, exist_ok=True)
 # ======================
 # PAGE CONFIGURATION
 # ======================
-st.set_page_config(page_title="TherAIpy", layout="wide")
+st.set_page_config(page_title="Mindly", layout="wide")
 
 # ======================
 # INITIAL STATE SETUP
@@ -176,7 +176,7 @@ except Exception as e:
 # LOGIN / REGISTER PAGE
 # ======================
 if not st.session_state.user:
-    st.title("🌿 Welcome to TherAIpy")
+    st.title("🌿 Welcome to Mindly")
     
     auth_tab = st.radio("Choose an option:", ["Login", "Register"], horizontal=True)
 
@@ -292,7 +292,7 @@ def autosave_chat():
 # SIDEBAR NAVIGATION
 # ======================
 with st.sidebar:
-    st.title("🌿 TherAIpy")
+    st.title("🌿 Mindly")
     st.markdown(f"Welcome, **{st.session_state.user}**")
     
     if st.button("Logout"):
