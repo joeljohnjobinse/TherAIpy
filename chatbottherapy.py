@@ -26,6 +26,7 @@ CONFIG_DIR = "config"
 USERDATA_DIR = "userdata"
 CONFIG_PATH = os.path.join(CONFIG_DIR, "users.yaml")
 
+# Create directories if they don't exist
 os.makedirs(CONFIG_DIR, exist_ok=True)
 os.makedirs(USERDATA_DIR, exist_ok=True)
 
@@ -535,7 +536,6 @@ def calculate_total_traits():
 # ======================
 if st.session_state.page == "Chat":
     st.title("💬 Your Therapy Chat")
-    st.caption("✨ Your personal emotional support companion")
     
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):

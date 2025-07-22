@@ -1,0 +1,13 @@
+cookie:
+  expiry_days: 30
+  key: some_random_key_here
+  name: theraipy_cookie
+credentials:
+  usernames:
+    joeljjjj:
+      created_at: '2025-07-22T12:40:52.923281'
+      email: ''
+      name: joeljjjj
+      password: $pbkdf2-sha256$29000$dc753/u/VwohhNB6jxEihA$Z3vXjq6qHZ4Kuw5VBgd95O4xRvgHAp7o3e9HLkkGowk
+preauthorized:
+  emails: []
